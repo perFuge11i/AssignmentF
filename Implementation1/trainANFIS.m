@@ -1,14 +1,16 @@
-n = 1000;
 
+% generate random input data within ranges
+n = 1000;
 level = -1.1 + 1.1*2 * rand(n, 1); % range [-1.1, 1.1]
 rate  = -0.35 + 0.35*2 * rand(n, 1); % range [-0.35, 0.35]
 inputData = [level, rate];
 
-% Optional: plot to visualize distribution
-%scatter(level, rate, 'b', 'filled')
-%xlabel('Level'), ylabel('Rate'), title('Random Input Data')
+%{
+scatter(level, rate, 'b', 'filled')
+xlabel('Level'), ylabel('Rate'), title('Random Input Data')
+%}
 
-
+%get FIS and generate true outputs
 fis = readfis('tank');
 targetOutput = evalfis(fis, inputData);
 
@@ -26,10 +28,12 @@ xlabel('Level'), ylabel('Rate'), zlabel('Valve Output')
 title('Input Output mapping surfaceView')
 %}
 
+% randomly shuffle data
 fullData = [inputData, targetOutput];
 rng(0);  % random number seed : for reproducibility
 fullData = fullData(randperm(size(fullData, 1)), :);
 
+% split into trainging and testing sets 80/20
 n = size(fullData, 1);
 nTrain = round(0.8 * n);
 
@@ -41,8 +45,9 @@ Y_train = trainData(:, 3);
 X_test  = testData(:, 1:2);
 Y_test  = testData(:, 3);
 
-% Plot coverage of both sets
+
 %{
+% Plot coverage of both sets
 figure
 scatter(X_train(:,1), X_train(:,2), 15, 'b', 'filled'); hold on
 scatter(X_test(:,1),  X_test(:,2),  15, 'r', 'filled');
@@ -51,12 +56,13 @@ legend('Training', 'Testing')
 title('Range Coverage of sets')
 %}
 
+% Generate an initail FIS
 genOptions = genfisOptions('GridPartition');
 genOptions.NumMembershipFunctions = 3;
 genOptions.InputMembershipFunctionType = 'gaussmf';
 initialFIS = genfis(X_train, Y_train, genOptions);
 
-
+% Train the ANFIS with 50 epochs
 trainOptions = anfisOptions('InitialFIS', initialFIS, ...
                         'EpochNumber', 50, ...
                         'DisplayANFISInformation', 1, ...
@@ -81,12 +87,15 @@ xlabel('Level'), ylabel('Rate'), zlabel('Predicted Output')
 title('Surface View of NFIS')
 %}
 
+% get predicted outputs
 Y_pred = evalfis(trainedModel, X_test);
 
+%{
+%s sort
 [sorted_Y_test, sortIdx] = sort(Y_test);
 sorted_Y_pred = Y_pred(sortIdx);    
 
-%{
+
 figure
 plot(sorted_Y_test, 'k', 'LineWidth', 1.2); hold on
 plot(sorted_Y_pred, 'r--', 'LineWidth', 1.2);
@@ -95,7 +104,7 @@ xlabel('Test Data'), ylabel('Output')
 title('Correct vs Predicted Output on Test Data')
 %}
 
-
+% calculate error metrics
 errors = Y_test - Y_pred;
 
 MSE  = mean(errors.^2);
@@ -125,6 +134,7 @@ axis equal
 grid on
 %}
 
+% generate values with extended ranges
 level_extnd = linspace(-1.5, 1.5, 50);
 rate_extnd = linspace(-0.5, 0.5, 50);
 [LevelExtndGrid, RateExtndGrid] = meshgrid(level_extnd, rate_extnd);
@@ -132,6 +142,7 @@ rate_extnd = linspace(-0.5, 0.5, 50);
 
 input_extnd = [LevelExtndGrid(:), RateExtndGrid(:)];
 
+% Get results from original FIS and ANFIS
 output_fis = evalfis(fis, input_extnd);
 output_model = evalfis(trainedModel, input_extnd);
 
@@ -154,4 +165,5 @@ xlabel('Level'), ylabel('Rate'), zlabel('Valve')
 axis tight
 %}
 
+% Write the model to a file
 writefis(trainedModel, 'anfis_controller.fis');
